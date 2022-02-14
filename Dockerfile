@@ -6,7 +6,7 @@ FROM ubuntu_base AS webproxy
 RUN apt install python3 -y
 WORKDIR /webproxy
 COPY ./src/webproxy/ ./
-ENTRYPOINT [ "python3", "main.py" ]
+ENTRYPOINT [ "python3", "main.py", "-p", "80", "-m", "From OFVp Open Source Project" ]
 
 FROM ubuntu_base AS badvpn
 RUN \
@@ -14,3 +14,4 @@ BADVPNTAG="$(curl -Ssl https://api.github.com/repos/OFVp-Project/BadvpnBin/relea
 echo "Downloading from URL: https://github.com/OFVp-Project/BadvpnBin/releases/download/${BADVPNTAG}/badvpn-udpgw-$(uname -m)"; \
 wget --quiet "https://github.com/OFVp-Project/BadvpnBin/releases/download/${BADVPNTAG}/badvpn-udpgw-$(uname -m)" -O /usr/bin/badvpn-udpgw && \
 chmod +x -v /usr/bin/badvpn-udpgw
+ENTRYPOINT [ "/usr/bin/badvpn-udpgw", "--listen-addr", "0.0.0.0:7300", "--max-clients", "99999999999", "--max-connections-for-client", "99999999" ]
