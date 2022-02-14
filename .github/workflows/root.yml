@@ -51,7 +51,7 @@ jobs:
           context: .
           push: ${{ github.event_name == 'push' || github.event_name == 'release' }}
           target: badvpn
-          tags: ghcr.io/ofvp-project/badvpn:${{ env.IMAGE_TAG || "latest" }}
+          tags: ghcr.io/ofvp-project/badvpn:${{ env.IMAGE_TAG || 'latest' }}
           platforms: ${{ env.docker_archs }}
 
       - name: Build and push WebProxy image
@@ -60,5 +60,5 @@ jobs:
           context: .
           push: ${{ github.event_name == 'push' || github.event_name == 'release' }}
           target: webproxy
-          tags: ghcr.io/ofvp-project/webproxy:${{ env.IMAGE_TAG || "latest" }}
+          tags: ghcr.io/ofvp-project/webproxy:${{ env.IMAGE_TAG || 'latest' }}
           platforms: ${{ env.docker_archs }}
