@@ -12,5 +12,5 @@ FROM ubuntu_base AS badvpn
 RUN \
 BADVPNTAG="$(curl -Ssl https://api.github.com/repos/OFVp-Project/BadvpnBin/releases/latest | grep 'tag_name' | cut -d \" -f 4)";\
 echo "Downloading from URL: https://github.com/OFVp-Project/BadvpnBin/releases/download/${BADVPNTAG}/badvpn-udpgw-$(uname -m)"; \
-wget -Q "https://github.com/OFVp-Project/BadvpnBin/releases/download/${BADVPNTAG}/badvpn-udpgw-$(uname -m)" -O /usr/bin/badvpn-udpgw && \
+wget --quiet "https://github.com/OFVp-Project/BadvpnBin/releases/download/${BADVPNTAG}/badvpn-udpgw-$(uname -m)" -O /usr/bin/badvpn-udpgw && \
 chmod +x -v /usr/bin/badvpn-udpgw
