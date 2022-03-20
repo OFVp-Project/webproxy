@@ -1,17 +1,6 @@
-FROM ubuntu:latest AS ubuntu_base
+FROM ubuntu:latest
 ENV DEBIAN_FRONTEND="noninteractive"
-RUN apt update && apt -y install build-essential wget curl git unzip zip python3 python python3-pip
-
-FROM ubuntu_base AS webproxy
-RUN apt install python3 -y
+RUN apt update && apt -y install python3
 WORKDIR /webproxy
-COPY ./src/webproxy/ ./
+COPY ./ ./
 ENTRYPOINT [ "python3", "main.py", "-p", "80", "-m", "From OFVp Open Source Project" ]
-
-FROM ubuntu_base AS badvpn
-RUN \
-BADVPNTAG="$(curl -Ssl https://api.github.com/repos/OFVp-Project/BadvpnBin/releases/latest | grep 'tag_name' | cut -d \" -f 4)";\
-echo "Downloading from URL: https://github.com/OFVp-Project/BadvpnBin/releases/download/${BADVPNTAG}/badvpn-udpgw-$(uname -m)"; \
-wget --quiet "https://github.com/OFVp-Project/BadvpnBin/releases/download/${BADVPNTAG}/badvpn-udpgw-$(uname -m)" -O /usr/bin/badvpn-udpgw && \
-chmod +x -v /usr/bin/badvpn-udpgw
-ENTRYPOINT [ "/usr/bin/badvpn-udpgw", "--listen-addr", "0.0.0.0:7300", "--max-clients", "99999999999", "--max-connections-for-client", "99999999" ]

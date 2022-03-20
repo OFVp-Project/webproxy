@@ -1,19 +1,14 @@
-name: Test/Build Docker Image
+name: Build Docker Image
 on:
   push:
-    branches:
-      - main
-  pull_request:
     branches:
       - main
   release:
     types:
       - released
-env:
-  docker_archs: linux/amd64,linux/arm64
-  NODE_AUTH_TOKEN: ${{ secrets.npm_token }}
+
 jobs:
-  BuildTest:
+  build:
     runs-on: ubuntu-latest
     name: Build Image
     steps:
@@ -34,31 +29,10 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Set Image Build Environment
-        run: |
-          if [[ "${{ github.event_name }}" == 'release' ]]; then
-            echo "Building release image"
-            echo IMAGE_TAG=latest >> $GITHUB_ENV
-          else
-            echo "Building development image"
-            echo IMAGE_TAG=nightly >> $GITHUB_ENV
-          fi
-          cat $GITHUB_ENV
-
-      - name: Build and push BadVPN image
-        uses: docker/build-push-action@v2
-        with:
-          context: .
-          push: ${{ github.event_name == 'push' || github.event_name == 'release' }}
-          target: badvpn
-          tags: ghcr.io/ofvp-project/badvpn:${{ env.IMAGE_TAG || 'latest' }}
-          platforms: ${{ env.docker_archs }}
-
       - name: Build and push WebProxy image
         uses: docker/build-push-action@v2
         with:
           context: .
-          push: ${{ github.event_name == 'push' || github.event_name == 'release' }}
-          target: webproxy
-          tags: ghcr.io/ofvp-project/webproxy:${{ env.IMAGE_TAG || 'latest' }}
-          platforms: ${{ env.docker_archs }}
+          push: true
+          tags: ghcr.io/ofvp-project/webproxy:latest
+          platforms: linux/amd64,linux/arm64
