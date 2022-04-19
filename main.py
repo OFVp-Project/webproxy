@@ -102,6 +102,7 @@ class ConnectionHandler(threading.Thread):
     self.server = server
     self.addr = addr
     self.log = "Connection: " + str(addr)
+    print("\n\n")
     print("Connection: " + str(addr))
     self.DEFAULT_HOST = SSH
     self.timeout = self.server.Timeout
