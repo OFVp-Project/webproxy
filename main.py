@@ -77,6 +77,9 @@ class Server(threading.Thread):
     try:
       self.threadsLock.acquire()
       self.threads.remove(conn)
+    except:
+      print("Detected error, exit with code 1")
+      sys.exit(1)
     finally:
       self.threadsLock.release()
   def Close(self):
@@ -148,8 +151,12 @@ class ConnectionHandler(threading.Thread):
       self.log += " - error: " + str(e)
       self.server.printLog(self.log)
     finally:
-      self.close()
-      self.server.RemoveConn(self)
+      try:
+        self.close()
+        self.server.RemoveConn(self)
+      except:
+        print("Detected error, exit with code 1")
+        sys.exit(1)
   def findHeader(self, head, header):
     for line in head:
       if line.find(header) != -1:
