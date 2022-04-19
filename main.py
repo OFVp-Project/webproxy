@@ -100,7 +100,9 @@ class ConnectionHandler(threading.Thread):
     self.client = socClient
     self.clientbuffer = ""
     self.server = server
+    self.addr = addr
     self.log = "Connection: " + str(addr)
+    print("Connection: " + str(addr))
     self.DEFAULT_HOST = SSH
     self.timeout = self.server.Timeout
   def close(self):
@@ -148,8 +150,7 @@ class ConnectionHandler(threading.Thread):
         print('- No X-Real-Host!')
         self.client.send('HTTP/1.1 400 NoXRealHost!\r\n\r\n')
     except Exception as e:
-      self.log += " - error: " + str(e)
-      self.server.printLog(self.log)
+      print(str(self.addr) + " - Error: " + str(e))
     finally:
       try:
         self.close()
@@ -253,3 +254,4 @@ def main():
 
 if __name__ == "__main__":
   sys.exit(print(main()))
+  
