@@ -174,6 +174,7 @@ class ConnectionHandler(threading.Thread):
       else:
         port = 80
     (soc_family, soc_type, proto, _, address) = getaddrinfo(host, port)[0]
+    print(str(self.addr) + " - Connecting to " + host + ":" + str(port))
     self.target = socket(soc_family, soc_type, proto)
     self.targetClosed = False
     self.target.connect(address)
@@ -198,11 +199,13 @@ class ConnectionHandler(threading.Thread):
             data = in_.recv(self.server.Client_Buffer)
             if data:
               if in_ is self.target:
+                print("[*] " + str(self.addr) + " - " + str(self.target.getpeername()[0]) + " - " + str(data))
                 self.client.send(data)
               else:
                 while data:
                   byte = self.target.send(data)
                   data = data[byte:]
+                  print("[*] " + str(self.addr) + " - " + str(self.target.getpeername()[0]) + " - " + str(data))
               count = 0
             else:
               break
@@ -254,4 +257,3 @@ def main():
 
 if __name__ == "__main__":
   sys.exit(print(main()))
-  
