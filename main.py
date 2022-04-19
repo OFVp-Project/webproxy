@@ -164,11 +164,13 @@ class ConnectionHandler(threading.Thread):
         return line.replace(header + ": ", "")
     return ""
   def connect_target(self, host):
+    print(host)
     i = host.find(":")
     if i != -1:
       port = int(host[i+1:])
       host = host[:i]
     else:
+      print("- Error no port in X-Real-Host: " + host)
       if self.method == "CONNECT":
         port = 443
       else:
