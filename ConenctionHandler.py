@@ -85,7 +85,7 @@ class ConnectionHandler(threading.Thread):
         print('- No X-Real-Host!')
         self.client.send('HTTP/1.1 400 NoXRealHost!\r\n\r\n')
     except Exception as e:
-      print(self.addr[0]+":"+str(self.addr[1])+": Connection error: "+str(e))
+      print(self.addr[0]+":"+str(self.addr[1])+": Connection error: "+str(e)+", Host:"+hostPort)
     finally:
       try:
         self.closeClient()
