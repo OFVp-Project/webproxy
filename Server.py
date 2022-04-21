@@ -73,8 +73,7 @@ class Server(threading.Thread):
       self.threadsLock.acquire()
       self.threads.remove(conn)
     except:
-      print("Detected error, exit with code 1")
-      sys.exit("Detected error")
+      pass
     finally:
       self.threadsLock.release()
 

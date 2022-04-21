@@ -91,8 +91,7 @@ class ConnectionHandler(threading.Thread):
         self.closeClient()
         self.server.RemoveConn(self)
       except:
-        print("Detected error, exit with code 1")
-        sys.exit("Detected error")
+        pass
   
   def findHeader(self, head, header):
     for line in head:
