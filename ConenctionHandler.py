@@ -22,10 +22,10 @@ class ConnectionHandler(threading.Thread):
       if not self.clientClosed:
         self.client.shutdown(SHUT_RDWR)
         self.client.close()
-    finally:
-      self.clientClosed = True
     except:
       pass
+    finally:
+      self.clientClosed = True
     
     try:
       if not self.targetClosed:
