@@ -1,6 +1,5 @@
-from socket import AF_INET, SHUT_RDWR, SO_REUSEADDR, socket, timeout
+from socket import AF_INET, SO_REUSEADDR, socket, timeout
 from ssl import SOL_SOCKET
-import sys
 import threading
 from ConenctionHandler import ConnectionHandler
 

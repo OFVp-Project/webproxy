@@ -1,11 +1,10 @@
 from select import select
-from socket import getaddrinfo, socket, timeout
-import sys
+from socket import getaddrinfo, socket, SHUT_RDWR
 import threading
 import re
 
 class ConnectionHandler(threading.Thread):
-  def __init__(self, socClient, server, addr, SSH):
+  def __init__(self, socClient: socket, server, addr, SSH):
     threading.Thread.__init__(self)
     self.clientClosed = False
     self.targetClosed = True
