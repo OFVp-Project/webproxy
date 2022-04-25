@@ -1,9 +1,13 @@
-FROM ubuntu:latest
+FROM debian:latest AS maneger
+CMD [ "/bin/bash", "-c" ]
 ENV DEBIAN_FRONTEND="noninteractive"
-RUN apt update && apt -y install python3 curl
-WORKDIR /webproxy
+RUN apt update && apt install -y git curl wget python3-minimal
+# Install latest node
+RUN VERSION=$(wget -qO- https://api.github.com/repos/Sirherobrine23/DebianNodejsFiles/releases/latest |grep 'name' | grep "nodejs"|grep "$(dpkg --print-architecture)"|cut -d '"' -f 4 | sed 's|nodejs_||g' | sed -e 's|_.*.deb||g'|sort | uniq|tail -n 1); wget -q "https://github.com/Sirherobrine23/DebianNodejsFiles/releases/download/debs/nodejs_${VERSION}_$(dpkg --print-architecture).deb" -O /tmp/nodejs.deb && dpkg -i /tmp/nodejs.deb && rm -rfv /tmp/nodejs.deb && npm install -g npm@latest
+WORKDIR /app
+COPY ./package*.json ./
+RUN npm install --no-save
+STOPSIGNAL SIGINT
 COPY ./ ./
-ENV PYTHONUNBUFFERED="1"
-ENTRYPOINT [ "python3", "-u", "main.py", "-p", "80" ]
-EXPOSE 80:80/tcp
-HEALTHCHECK --interval=15s --timeout=5s CMD curl -f http://localhost:80 || exit 1
+RUN npm run build
+ENTRYPOINT [ "node", "dist/index.js" ]
