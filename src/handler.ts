@@ -32,9 +32,9 @@ export class connectionHandler {
   }
 
   /** Send custom message */
-  public main() {
+  public async main() {
     if (this.closed) return
-    this.runFist();
+    await this.runFist();
     this.client.write(`HTTP/${this.httpVersion} ${this.httpCode} ${this.httpMessage}\r\n\r\n`);
     return;
   }
@@ -50,26 +50,18 @@ export class connectionHandler {
     const sshDial = net.createConnection(parseInt(this.sshHost.split(":")[1]), this.sshHost.split(":")[0]);
     sshDial.on("data", data => console.log("ssh: %s", data.toString()));
     // sshDial.write("SSH-2.0-OpenSSH_8.4p1 Debian-5\r\n");
+    this.client.on("close", () => sshDial.destroy());
     sshDial.on("connect", () => {
       console.log("wsSSH: SSH connection established: %s", this.sshHost);
-      this.client.on("close", () => sshDial.destroy());
       sshDial.on("close", () => this.client.destroy());
-      sshDial.once("data", data => {
-        this.client.write(data);
-      });
-      this.client.once("data", data => {
-        sshDial.write(data);
-      });
     });
   }
 
-  private closedHeaders = false;
   /** run Conenction */
   public async runFist() {
     if (this.closed) return
     await new Promise(res => {
-      this.client.on("data", (data) => {
-        if (this.closedHeaders) return;
+      this.client.once("data", (data) => {
         const str = data.toString();
         const headers = str.split("\r\n").filter(line => line.length > 0);
         for (const header_line of headers) {
@@ -81,7 +73,6 @@ export class connectionHandler {
         }
         console.log("wsSSH: Client headers: %o", this.haders);
         console.log("wsSSH: Client raw headers: %s", str);
-        this.closedHeaders = true;
         res("");
       });
     });
