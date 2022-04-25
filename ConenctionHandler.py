@@ -1,3 +1,4 @@
+from ast import Str
 from select import select
 from socket import getaddrinfo, socket, SHUT_RDWR
 import threading
@@ -41,13 +42,6 @@ class ConnectionHandler(threading.Thread):
       pass
     finally:
       self.targetClosed = True
-
-  def ConnectMethod(self, path):
-    self.connect_target(str(path))
-    Menssage_to_send = str(self.server.HTTP_Version) + " " + str(self.server.Code) + " " + str(self.server.Message) + "\r\n\r\n"
-    self.client.sendall(bytes(Menssage_to_send, "utf8"))
-    self.clientbuffer = ""
-    self.ClientConnectAndTransmit()
 
   def run(self):
     try:
@@ -98,7 +92,7 @@ class ConnectionHandler(threading.Thread):
         return line.replace(header + ": ", "")
     return ""
   
-  def connect_target(self, host):
+  def connect_target(self, host: str):
     i = host.find(":")
     if i != -1:
       port = int(host[i+1:])
@@ -149,3 +143,10 @@ class ConnectionHandler(threading.Thread):
     self.clientClosed = True
     self.client.close()
     self.target.close()
+
+  def ConnectMethod(self, path):
+    self.connect_target(str(path))
+    Menssage_to_send = str(self.server.HTTP_Version) + " " + str(self.server.Code) + " " + str(self.server.Message) + "\r\n\r\n"
+    self.client.sendall(bytes(Menssage_to_send, "utf8"))
+    self.clientbuffer = ""
+    self.ClientConnectAndTransmit()
