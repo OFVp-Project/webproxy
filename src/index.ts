@@ -10,11 +10,6 @@ const cmdOptions = yargs(process.argv.slice(2)).alias("h", "help").option("port"
   default: "0.0.0.0:22",
   alias: "s",
   description: "SSH host and port"
-}).option("timeout", {
-  type: "number",
-  default: 60,
-  alias: "t",
-  description: "Connection timeout, If users are disconnecting, it is good to change this value"
 }).option("code", {
   type: "number",
   default: 101,
@@ -40,14 +35,9 @@ const cmdOptions = yargs(process.argv.slice(2)).alias("h", "help").option("port"
 
 console.log("wsSSH: Starting web proxy on port %d", cmdOptions.port)
 console.log("wsSSH: SSH host: %s", cmdOptions.ssh)
-console.log("wsSSH: Connection timeout: %d", cmdOptions.timeout)
 console.log("wsSSH: HTTP status code: %d", cmdOptions.code)
 console.log("wsSSH: HTTP status message: %s", cmdOptions.message)
 console.log("wsSSH: HTTP version: HTTP/%s", cmdOptions.httpVersion)
 console.log("wsSSH: Starting web proxy...\n****** LOG ******\n")
-const ServerConfig = new Server(cmdOptions.port, cmdOptions.ssh, cmdOptions.timeout, cmdOptions.code, cmdOptions.message, cmdOptions.httpVersion as any, cmdOptions.buffer);
+const ServerConfig = new Server(cmdOptions.port, cmdOptions.ssh, cmdOptions.code, cmdOptions.message, cmdOptions.httpVersion as any, cmdOptions.buffer);
 ServerConfig.startServer();
-process.on("SIGINT", async () => {
-  await ServerConfig.stopServer();
-  process.exit(0);
-});

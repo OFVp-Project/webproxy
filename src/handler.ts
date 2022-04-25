@@ -22,8 +22,8 @@ async function slectWait(r: Array<net.Socket>, w: Array<net.Socket>) {
 }
 
 export class connectionHandler {
-  private client: net.Socket = undefined as any;
   public closed = false;
+  private client: net.Socket = undefined as any;
   private target?: net.Socket = undefined;
   private sshHost: string = "0.0.0.0"
   private sshPort: number = 22
@@ -31,8 +31,8 @@ export class connectionHandler {
   private httpCode: number = 200
   private httpMessage: string = "OK"
   private httpVersion: "1.0"|"1.1" = "1.0"
-  private Timeout: number = 60
-  constructor (client: net.Socket, sshHost: string, sshPort: number, Timeout: number, httpCode: number, httpMessage: string, httpVersion: "1.0"|"1.1", BufferRec: number) {
+  private clientIpre = "";
+  constructor (client: net.Socket, sshHost: string, sshPort: number, httpCode: number, httpMessage: string, httpVersion: "1.0"|"1.1", BufferRec: number) {
     this.client = client
     this.sshHost = sshHost
     this.sshPort = sshPort
@@ -40,31 +40,47 @@ export class connectionHandler {
     this.httpCode = httpCode
     this.httpMessage = httpMessage
     this.httpVersion = httpVersion
-    this.Timeout = Timeout
-    console.log(this.Timeout)
+    this.clientIpre = `${this.client.remoteAddress}:${this.client.remotePort}`
     this.client.once("close", () => {
-      console.log("wsSSH: Client disconnected: %s", this.client.remoteAddress+":"+this.client.remotePort);
+      console.log("%s wsSSH: Client disconnected", this.clientIpre);
       this.closed = true;
     });
-    this.client.once("error", () => {
+    this.client.once("error", err => {
       if (!this.closed) {
-        console.log("wsSSH: Client disconnected: %s", this.client.remoteAddress+":"+this.client.remotePort);
+        console.log("%s wsSSH: Client error: %s", this.clientIpre, err.message);
         return
       }
       this.closed = true;
     });
+    process.on("SIGINT", async () => {
+      if (this.target !== undefined) {
+        if (!this.target.destroyed) {
+          this.target.end();
+          this.target.destroy();
+        }
+      }
+      if (!this.client.destroyed) {
+        this.client.write(`HTTP/1.1 400 Bad Request\r\n\r\n`);
+        this.client.end(`400 Bad Request`);
+        this.client.destroy();
+      }
+    });
   }
 
   /** Close connection */
-  public async closeClient(msg?: string) {
+  public async closeClient(msg?: string, code?: number) {
     if (this.target !== undefined) {
       if (!this.target.destroyed) {
-        this.target.end(msg?msg:undefined);
+        if (code) {
+          this.target.end(`HTTP/1.1 ${code} ${msg||"Bad Response"}\r\n\r\n`)
+        } else this.target.end(msg?msg:undefined);
         this.target.destroy();
       }
     }
     if (!this.client.destroyed) {
-      this.client.end(msg?msg:undefined);
+      if (code) {
+        this.client.end(`HTTP/1.1 ${code} ${msg||"Bad Response"}\r\n\r\n`)
+      } else this.client.end(msg?msg:undefined);
       this.client.destroy();
     }
     return;
@@ -81,35 +97,41 @@ export class connectionHandler {
 
   private method = "GET"
   private async connect_target(host: string) {
-    if (!host) host = this.sshHost+":"+this.sshPort;
-    const exits = host.includes(":");
     let port: number = this.sshPort;
+    if (host === undefined) host = `${this.sshHost}:${this.sshPort}`;
+    const exits = host.includes(":");
     if (exits) {
       const [hostname, portI] = host.split(":");
       port = parseInt(portI);
       host = hostname;
       if (isNaN(port)) {
-        console.log("wsSSH: Invalid port: %s", portI);
+        console.log("%s wsSSH (SSH): Invalid port: %s", this.clientIpre, portI);
         return;
       }
     } else {
       if (this.method === "CONNECT") port = 443;
       else port = 80;
     }
+    if (/undefined/.test(host)) host = this.sshHost;
     this.target = net.createConnection({port: port, host: host});
     this.closed = false;
     this.target.once("connect", () => {
-      console.log("wsSSH: Connected to %s:%d", host, port);
+      console.log("%s wsSSH (SSH): Connected to %s:%d", this.clientIpre, host, port);
+    });
+    this.target.once("error", (err) => {
+      console.log("%s wsSSH (SSH): Error connecting to %s:%d: %s", this.clientIpre, host, port, err.message);
+      this.closeClient();
     });
   }
 
   private async ClientConnectAndTransmit() {
-    this.target.on("data", (data) => {
-      this.client.write(data);
+    this.client.pipe(this.target);
+    this.target.pipe(this.client);
+    await new Promise((resolve) => {
+      this.client.once("close", resolve);
+      this.target.once("close", resolve);
     });
-    this.client.on("data", (data) => {
-      this.target.write(data);
-    });
+    this.closeClient("Timeout", 400);
   }
 
   private sendMenssage() {
@@ -118,10 +140,11 @@ export class connectionHandler {
   }
 
   private async ConnectMethod(hostPort: string) {
+    if (hostPort === undefined) hostPort = `${this.sshHost}:${this.sshPort}`;
+    else if (/undefined/.test(hostPort)) hostPort = `${this.sshHost}:${this.sshPort}`;
     this.sendMenssage();
     this.connect_target(hostPort);
     await slectWait([this.client], [this.target]);
-    console.log("wsSSH: Connected to %s:%d", hostPort, this.sshPort);
     this.ClientConnectAndTransmit();
   }
 
@@ -132,12 +155,19 @@ export class connectionHandler {
       });
     });
     let hostPort = this.findHeader(data, "X-Real-Host")
-    if (hostPort == "") hostPort = this.sshHost+":"+this.sshPort;
+    if (hostPort === "") hostPort = this.sshHost+":"+this.sshPort;
     
+    const UserAgent = this.findHeader(data, "User-Agent")||"";
+    if (/curl|wget/.test(UserAgent.toLowerCase())) {
+      this.client.write(`HTTP/1.1 200 OK\r\n\r\n`);
+      this.client.end("Agent not allowed");
+      return;
+    }
+
     let split = this.findHeader(data, "X-Split")
     if (split !== "") this.client.read(this.BufferRec)
     
-    if (hostPort != "") {
+    if (hostPort !== "") {
       let PASS = ""
       let passwd = this.findHeader(data, "X-Pass")
       if (PASS.length !== 0 && passwd === PASS) this.ConnectMethod(hostPort)
