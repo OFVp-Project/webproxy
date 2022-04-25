@@ -55,11 +55,11 @@ class Server(threading.Thread):
     try:
       while self.Running:
         try:
-          c, addr = self.soc.accept()
-          c.setblocking(1)
+          sockConn, addr = self.soc.accept()
+          sockConn.setblocking(1)
         except timeout:
           continue
-        conn = ConnectionHandler(c, self, addr, self.SSH)
+        conn = ConnectionHandler(sockConn, self, addr, self.SSH)
         conn.start()
         self.AddConn(conn)
     finally:

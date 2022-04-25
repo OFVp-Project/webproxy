@@ -1,10 +1,10 @@
-import { createServer, Server } from "http";
+import { createServer, Server } from "net";
 import { Socket } from "net";
 import { connectionHandler } from "./handler";
 
 export default class serverListen {
   private portListen: number = 80
-  private serverListen: Server = undefined as any
+  private serverListen?: Server
   private clients: Array<{connection: connectionHandler, socket: Socket}> = []
   private sshHost: string = "0.0.0.0:22"
   private Timeout: number = 60
@@ -15,7 +15,9 @@ export default class serverListen {
   constructor(Port: number, SSH: string, Timeout: number, Code: number, Message: string, HTTP_Version: "1.0"|"1.1", Client_Buffer: number) {
     this.portListen = Port
     this.sshHost = SSH
-    this.Timeout = Timeout
+    if (!isNaN(Timeout)) {
+      this.Timeout = Timeout
+    }
     this.httpCode = Code
     this.httpMessage = Message
     this.httpVersion = HTTP_Version
@@ -30,7 +32,10 @@ export default class serverListen {
     this.serverListen.listen(this.portListen, "0.0.0.0", () => console.log("wsSSH: Starting web proxy on port %d", this.portListen));
     this.serverListen.on("connection", (socket) => {
       console.log("wsSSH: Client connected: %s", socket.remoteAddress+":"+socket.remotePort);
-      const Connection = new connectionHandler(socket, this.sshHost, this.Timeout, this.httpCode, this.httpMessage, this.httpVersion, this.BufferCreate);
+      socket.allowHalfOpen = true;
+      socket.setNoDelay(true);
+      socket.setKeepAlive(true);
+      const Connection = new connectionHandler(socket, this.sshHost.split(":")[0], parseInt(this.sshHost.split(":")[1]), this.Timeout, this.httpCode, this.httpMessage, this.httpVersion, this.BufferCreate);
       Connection.main();
       this.clients.push({
         connection: Connection,

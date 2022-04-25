@@ -2,7 +2,6 @@ from ast import Str
 from select import select
 from socket import getaddrinfo, socket, SHUT_RDWR
 import threading
-import re
 
 class ConnectionHandler(threading.Thread):
   def __init__(self, socClient: socket, server, addr, SSH):
@@ -43,20 +42,17 @@ class ConnectionHandler(threading.Thread):
     finally:
       self.targetClosed = True
 
+  def ConnectMethod(self, path):
+    self.connect_target(str(path))
+    Menssage_to_send = str(self.server.HTTP_Version) + " " + str(self.server.Code) + " " + str(self.server.Message) + "\r\n\r\n"
+    self.client.sendall(bytes(Menssage_to_send, "utf8"))
+    self.clientbuffer = ""
+    self.ClientConnectAndTransmit()
+
   def run(self):
     try:
       dc = self.client.recv(self.server.Client_Buffer).decode()
       self.clientbuffer = dc.split("\r\n")
-      
-      # Detect agent is curl or wget and return 200 ok
-      match = re.match(r'((?P<agent>[^"]*?))/', self.findHeader(self.clientbuffer, "User-Agent"))
-      agent = match and match.groupdict()["agent"] or ""
-      if (agent == "curl" or agent == "wget"):
-        self.client.send(bytes("HTTP/1.1 200 OK\r\n\r\n", "utf8"))
-        self.client.send(bytes("Running\n", "utf8"))
-        self.client.close()
-        print(self.addr[0]+":"+str(self.addr[1])+": Closing connection, wget or curl")
-        return
 
       hostPort = self.findHeader(self.clientbuffer, "X-Real-Host")
       if hostPort == "":
@@ -117,6 +113,11 @@ class ConnectionHandler(threading.Thread):
       (recv, _, err) = select(socs, [], socs, 3)
       if err:
         error = True
+      if count == self.timeout:
+          error = True
+      if error:
+        print(self.addr[0]+":"+str(self.addr[1])+": Closing connection")
+        break
       if recv:
         for in_ in recv:
           try:
@@ -124,9 +125,13 @@ class ConnectionHandler(threading.Thread):
             if data:
               if in_ is self.target:
                 self.client.send(data)
+                print("SSH Bytes>: ", len(data))
+                print("SSH Data>: ", data)
               else:
                 while data:
                   byte = self.target.send(data)
+                  print("SOCKE Bytes>: ", len(data))
+                  print("SOCKE data<: ", data)
                   data = data[byte:]
               count = 0
             else:
@@ -134,19 +139,7 @@ class ConnectionHandler(threading.Thread):
           except:
             error = True
             break
-      if count == self.timeout:
-        error = True
-      if error:
-        print(self.addr[0]+":"+str(self.addr[1])+": Closing connection")
-        break
     self.targetClosed = True
     self.clientClosed = True
     self.client.close()
     self.target.close()
-
-  def ConnectMethod(self, path):
-    self.connect_target(str(path))
-    Menssage_to_send = str(self.server.HTTP_Version) + " " + str(self.server.Code) + " " + str(self.server.Message) + "\r\n\r\n"
-    self.client.sendall(bytes(Menssage_to_send, "utf8"))
-    self.clientbuffer = ""
-    self.ClientConnectAndTransmit()
