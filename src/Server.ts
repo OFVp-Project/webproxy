@@ -1,11 +1,9 @@
 import { createServer, Server } from "net";
-import { Socket } from "net";
 import { connectionHandler } from "./handler";
 
 export default class serverListen {
   private portListen: number = 80
   private serverListen?: Server
-  private clients: Array<{connection: connectionHandler, socket: Socket}> = []
   private sshHost: string = "0.0.0.0:22"
   private httpCode: number = 101
   private httpMessage: string = "<font color=\"null\">By ofvp project</font>"
@@ -31,10 +29,6 @@ export default class serverListen {
       socket.setKeepAlive(true);
       const Connection = new connectionHandler(socket, this.sshHost.split(":")[0], parseInt(this.sshHost.split(":")[1]), this.httpCode, this.httpMessage, this.httpVersion, this.BufferCreate);
       Connection.main();
-      this.clients.push({
-        connection: Connection,
-        socket: socket
-      });
     });
   }
 }
