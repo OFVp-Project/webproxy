@@ -1,69 +1,66 @@
 import net from "net";
 
+/**
+ * Wait for connections make write and read
+ * 
+ * @param r - All sockets to wait readable
+ * @param w - All sockets to wait writable
+ */
 async function slectWait(r: Array<net.Socket>, w: Array<net.Socket>) {
   await Promise.all([
     Promise.all(r.map(async (s) => {
-      return new Promise(async (resolve) => {
-        while (true) {
-          if (s.readable) return resolve("");
-          await new Promise((resolve) => setTimeout(resolve, 5));
-        }
+      return new Promise((resolve) => {
+        process.nextTick(async () => {
+          while (true) {
+            if (s.readable) return resolve("");
+            await new Promise((resolve) => setTimeout(resolve, 5));
+          }
+        });
       });
     })),
-    Promise.all(w.map(async (s) => {
-      return new Promise(async (resolve) => {
-        while (true) {
-          if (s.writable) return resolve("");
-          await new Promise((resolve) => setTimeout(resolve, 5));
-        }
+    Promise.all(w.map((s) => {
+      process.nextTick(async () => {
+        new Promise(async (resolve) => {
+          while (true) {
+            if (s.writable) return resolve("");
+            await new Promise((resolve) => setTimeout(resolve, 5));
+          }
+        });
       });
     }))
-  ])
+  ]);
 }
 
 export class connectionHandler {
   public closed = false;
-  private client: net.Socket = undefined as any;
-  private target?: net.Socket = undefined;
-  private sshHost: string = "0.0.0.0"
-  private sshPort: number = 22
-  private BufferRec = 0
-  private httpCode: number = 200
-  private httpMessage: string = "OK"
-  private httpVersion: "1.0"|"1.1" = "1.0"
+  public target?: net.Socket = undefined;
+  private client?: net.Socket = undefined;
+  private sshHost: string = "0.0.0.0";
+  private sshPort: number = 22;
+  private logLevel: "LOG1"|"DEBUG1"|"NONE" = "LOG1";
+  private httpCode: number = 200;
+  private httpMessage: string = "OK";
+  private httpVersion: "1.0"|"1.1" = "1.0";
   private clientIpre = "";
-  constructor (client: net.Socket, sshHost: string, sshPort: number, httpCode: number, httpMessage: string, httpVersion: "1.0"|"1.1", BufferRec: number) {
+  constructor (client: net.Socket, sshHost: string, sshPort: number, httpCode: number, httpMessage: string, httpVersion: "1.0"|"1.1", logLevel: "LOG1"|"DEBUG1"|"NONE") {
     this.client = client
     this.sshHost = sshHost
     this.sshPort = sshPort
-    this.BufferRec = BufferRec
+    this.logLevel = logLevel
     this.httpCode = httpCode
     this.httpMessage = httpMessage
     this.httpVersion = httpVersion
     this.clientIpre = `${this.client.remoteAddress}:${this.client.remotePort}`
     this.client.once("close", () => {
-      console.log("%s wsSSH: Client disconnected", this.clientIpre);
+      if (this.logLevel !== "NONE") console.log("%s wsSSH: Client disconnected", this.clientIpre);
       this.closed = true;
     });
     this.client.once("error", err => {
       if (!this.closed) {
-        console.log("%s wsSSH: Client error: %s", this.clientIpre, err.message);
+        if (this.logLevel !== "NONE") console.log("%s wsSSH: Client error: %s", this.clientIpre, err.message);
         return
       }
       this.closed = true;
-    });
-    process.on("SIGINT", async () => {
-      if (this.target !== undefined) {
-        if (!this.target.destroyed) {
-          this.target.end();
-          this.target.destroy();
-        }
-      }
-      if (!this.client.destroyed) {
-        this.client.write(`HTTP/1.1 400 Bad Request\r\n\r\n`);
-        this.client.end(`400 Bad Request`);
-        this.client.destroy();
-      }
     });
   }
 
@@ -95,7 +92,7 @@ export class connectionHandler {
     return undefined;
   }
 
-  private method = "GET"
+  private method = "GET";
   private async connect_target(host: string) {
     let port: number = this.sshPort;
     if (host === undefined) host = `${this.sshHost}:${this.sshPort}`;
@@ -105,7 +102,7 @@ export class connectionHandler {
       port = parseInt(portI);
       host = hostname;
       if (isNaN(port)) {
-        console.log("%s wsSSH (SSH): Invalid port: %s", this.clientIpre, portI);
+        if (this.logLevel !== "NONE") console.log("%s wsSSH (SSH): Invalid port: %s", this.clientIpre, portI);
         return;
       }
     } else {
@@ -116,17 +113,26 @@ export class connectionHandler {
     this.target = net.createConnection({port: port, host: host});
     this.closed = false;
     this.target.once("connect", () => {
-      console.log("%s wsSSH (SSH): Connected to %s:%d", this.clientIpre, host, port);
+      if (this.logLevel !== "NONE") console.log("%s wsSSH (SSH): Connected to %s:%d", this.clientIpre, host, port);
     });
     this.target.once("error", (err) => {
-      console.log("%s wsSSH (SSH): Error connecting to %s:%d: %s", this.clientIpre, host, port, err.message);
+      if (this.logLevel !== "NONE") console.log("%s wsSSH (SSH): Error connecting to %s:%d: %s", this.clientIpre, host, port, err.message);
       this.closeClient();
     });
   }
 
+  /**
+   * After the client and target are connected, this function will transmit data between them
+   */
   private async ClientConnectAndTransmit() {
-    this.client.pipe(this.target);
-    this.target.pipe(this.client);
+    this.client.on("data", buff => {
+      if (this.logLevel === "DEBUG1") console.log("%s wsSSH (SSH): Target bytes send: %s", this.clientIpre, buff.length);
+      if (!this.closed) this.target.write(buff);
+    });
+    this.target.on("data", buff => {
+      if (this.logLevel === "DEBUG1") console.log("%s wsSSH (SSH): Target bytes received: %s", this.clientIpre, buff.length);
+      if (!this.closed) this.client.write(buff);
+    });
     await new Promise((resolve) => {
       this.client.once("close", resolve);
       this.target.once("close", resolve);
@@ -139,7 +145,7 @@ export class connectionHandler {
     this.client.write(`${MessageToSend}\r\n\r\n`);
   }
 
-  private async ConnectMethod(hostPort: string) {
+  private async ConnectMethod(hostPort?: string) {
     if (hostPort === undefined) hostPort = `${this.sshHost}:${this.sshPort}`;
     else if (/undefined/.test(hostPort)) hostPort = `${this.sshHost}:${this.sshPort}`;
     this.sendMenssage();
@@ -154,18 +160,19 @@ export class connectionHandler {
         resolve(data.toString());
       });
     });
+    if (this.logLevel === "DEBUG1") console.log("%s wsSSH: Received data: %s", this.clientIpre, data);
     let hostPort = this.findHeader(data, "X-Real-Host")
-    if (hostPort === "") hostPort = this.sshHost+":"+this.sshPort;
+    if (!hostPort) hostPort = this.sshHost+":"+this.sshPort;
     
-    const UserAgent = this.findHeader(data, "User-Agent")||"";
-    if (/curl|wget/.test(UserAgent.toLowerCase())) {
-      this.client.write(`HTTP/1.1 200 OK\r\n\r\n`);
-      this.client.end("Agent not allowed");
-      return;
-    }
+    // const UserAgent = this.findHeader(data, "User-Agent")||"";
+    // if (/curl|wget/.test(UserAgent.toLowerCase())) {
+    //   this.client.write(`HTTP/1.1 200 OK\r\n\r\n`);
+    //   this.client.end("Agent not allowed");
+    //   return;
+    // }
 
     let split = this.findHeader(data, "X-Split")
-    if (split !== "") this.client.read(this.BufferRec)
+    if (!split) {}
     
     if (hostPort !== "") {
       let PASS = ""
