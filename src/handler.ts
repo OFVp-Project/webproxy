@@ -125,14 +125,8 @@ export class connectionHandler {
    * After the client and target are connected, this function will transmit data between them
    */
   private async ClientConnectAndTransmit() {
-    this.client.on("data", buff => {
-      if (this.logLevel === "DEBUG1") console.log("%s wsSSH (SSH): Target bytes send: %s", this.clientIpre, buff.length);
-      if (!this.closed) this.target.write(buff);
-    });
-    this.target.on("data", buff => {
-      if (this.logLevel === "DEBUG1") console.log("%s wsSSH (SSH): Target bytes received: %s", this.clientIpre, buff.length);
-      if (!this.closed) this.client.write(buff);
-    });
+    this.client.pipe(this.target);
+    this.target.pipe(this.client);
     await new Promise((resolve) => {
       this.client.once("close", resolve);
       this.target.once("close", resolve);
