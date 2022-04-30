@@ -5,11 +5,15 @@
   "main": "index.js",
   "scripts": {
     "build": "tsc",
-    "start": "ts-node src/index.ts"
+    "start": "ts-node src/index.ts",
+    "postinstall": "npm run build"
   },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/OFVp-Project/webproxy.git"
+  },
+  "bin": {
+    "ofvp_webproxy": "./dist/index.js"
   },
   "author": "",
   "license": "ISC",
