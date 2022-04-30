@@ -7,7 +7,11 @@
   "postCreateCommand": "screen -dm -L -Logfile /tmp/dockerd.log sudo dockerd",
   "runArgs": [
     "--init",
-    "--privileged"
+    "--privileged",
+    "-p", "8180:80",
+    "-p", "8022:22",
+    "-p", "7333:7300",
+    "-p", "3566:3000"
   ],
   "mounts": [
     "source=ofvp_project_dind,target=/var/lib/docker,type=volume"
