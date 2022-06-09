@@ -1,37 +1,49 @@
 {
-  "name": "ofvpserver",
-  "dockerFile": "Dockerfile",
+  "name": "Web Proxy",
   "updateRemoteUserUID": false,
-  "containerUser": "gitpod",
-  "remoteUser": "gitpod",
-  "postCreateCommand": "screen -dm -L -Logfile /tmp/dockerd.log sudo dockerd",
+  "containerUser": "develop",
+  "remoteUser": "develop",
+  "overrideCommand": false,
+  "postCreateCommand": "npm install",
+  "build": {
+    "dockerfile": "Dockerfile",
+    "args": {
+      "USERNAME": "develop",
+      "USER_UID": "1000"
+    }
+  },
   "runArgs": [
     "--init",
-    "--privileged",
-    "-p", "8180:80",
-    "-p", "8022:22",
-    "-p", "7333:7300",
-    "-p", "3566:3000"
+    "--privileged"
   ],
   "mounts": [
-    "source=ofvp_project_dind,target=/var/lib/docker,type=volume"
+    "target=/var/lib/docker,type=volume,source=webproxy"
   ],
-  "settings": {
-    "terminal.integrated.defaultProfile.linux": "zsh"
-  },
   "extensions": [
-    "github.copilot",
-    "redhat.vscode-yaml",
-    "visualstudioexptteam.vscodeintellicode",
-    "vscode-icons-team.vscode-icons",
-    "eamodio.gitlens",
-    "akamud.vscode-theme-onedark",
-    "ms-azuretools.vscode-docker",
-    "me-dutour-mathieu.vscode-github-actions",
-    "benshabatnoam.google-translate-ext",
-    "wmaurer.change-case",
-    "oderwat.indent-rainbow",
-    "ionutvmi.path-autocomplete",
-    "christian-kohler.path-intellisense"
-  ]
+		"benshabatnoam.google-translate-ext",
+		"eamodio.gitlens",
+		"github.vscode-pull-request-github",
+		"visualstudioexptteam.vscodeintellicode",
+		"redhat.vscode-yaml",
+		"ms-vscode-remote.remote-containers",
+		"wix.vscode-import-cost",
+		"eg2.vscode-npm-script",
+		"christian-kohler.npm-intellisense",
+		"christian-kohler.path-intellisense",
+		"aaron-bond.better-comments",
+		"vscode-icons-team.vscode-icons",
+		"me-dutour-mathieu.vscode-github-actions",
+		"cschleiden.vscode-github-actions",
+		"oderwat.indent-rainbow",
+		"ms-azuretools.vscode-docker",
+		"formulahendry.code-runner",
+		"chrmarti.regex"
+	],
+	"settings": {
+    "editor.tabSize": 2,
+    "editor.minimap.enabled": false,
+    "files.eol": "\n",
+    "files.trimFinalNewlines": true,
+    "files.trimTrailingWhitespace": true
+  }
 }
