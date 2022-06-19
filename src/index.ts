@@ -2,13 +2,14 @@
 import * as net from "node:net";
 import yargs from "yargs";
 
-const cmdOptions = yargs(process.argv.slice(2)).alias("h", "help").alias("v", "version").wrap(yargs.terminalWidth()).option("port", {type: "number",
-  default: 80,
+const cmdOptions = yargs(process.argv.slice(2)).alias("h", "help").alias("v", "version").wrap(yargs.terminalWidth()).option("port", {
+  type: "number",
+  default: !!process.env.PORT_LISTEN ? parseInt(process.env.PORT_LISTEN) : 8080,
   alias: "p",
   description: "Port to listen server"
 }).option("ssh", {
   type: "string",
-  default: "0.0.0.0:22",
+  default: process.env.SSH_HOST||"0.0.0.0:22",
   alias: "s",
   description: "SSH host and port"
 }).option("code", {
@@ -18,7 +19,7 @@ const cmdOptions = yargs(process.argv.slice(2)).alias("h", "help").alias("v", "v
   description: "Proxy HTTP status code"
 }).option("message", {
   type: "string",
-  default: "<font color=\"green\">By OFVp Project</font>",
+  default: process.env.STATUS_MESSAGE||"<font color=\"green\">By OFVp Project</font>",
   alias: "m",
   description: "Proxy HTTP status message"
 }).option("httpVersion", {
@@ -31,7 +32,7 @@ const cmdOptions = yargs(process.argv.slice(2)).alias("h", "help").alias("v", "v
   type: "string",
   alias: "l",
   description: "Log level to show in console",
-  default: "LOG1",
+  default: process.env.LOG_LEVEL||"LOG1",
   choices: [
     "NONE",   "none",  "0",
     "LOG1",   "log",   "1",
@@ -44,18 +45,17 @@ const cmdOptions = yargs(process.argv.slice(2)).alias("h", "help").alias("v", "v
   description: "Allow to replace host if includes CONNECT in header"
 }).help().parseSync();
 
-const
-portListen = cmdOptions.port,
-httpCode = cmdOptions.code,
-httpMessage = cmdOptions.message,
-httpVersion = cmdOptions.httpVersion,
-ssh = {host: cmdOptions.ssh.split(":")[0], port: parseInt(cmdOptions.ssh.split(":")[1])},
-allowReplaceHostByHeader = cmdOptions.allowReplaceHost;
-let logLevel: "LOG1"|"DEBUG1"|"NONE" = "LOG1";
-if (cmdOptions.loglevel.toUpperCase() === "LOG1"||cmdOptions.loglevel.toUpperCase() === "LOG"||cmdOptions.loglevel.toUpperCase() === "1") logLevel = "LOG1";
-else if (cmdOptions.loglevel.toUpperCase() === "DEBUG1"||cmdOptions.loglevel.toUpperCase() === "DEBUG"||cmdOptions.loglevel.toUpperCase() === "2") logLevel = "DEBUG1";
-else if (cmdOptions.loglevel.toUpperCase() === "NONE"||cmdOptions.loglevel.toUpperCase() === "0") logLevel = "NONE";
-else throw new Error("Unknown log level");
+const portListen = cmdOptions.port,
+  httpCode = cmdOptions.code,
+  httpMessage = cmdOptions.message,
+  httpVersion = cmdOptions.httpVersion,
+  ssh = {host: cmdOptions.ssh.split(":")[0], port: parseInt(cmdOptions.ssh.split(":")[1])},
+  allowReplaceHostByHeader = cmdOptions.allowReplaceHost;
+  let logLevel: "LOG1"|"DEBUG1"|"NONE" = "LOG1";
+  if (cmdOptions.loglevel.toUpperCase() === "LOG1"||cmdOptions.loglevel.toUpperCase() === "LOG"||cmdOptions.loglevel.toUpperCase() === "1") logLevel = "LOG1";
+  else if (cmdOptions.loglevel.toUpperCase() === "DEBUG1"||cmdOptions.loglevel.toUpperCase() === "DEBUG"||cmdOptions.loglevel.toUpperCase() === "2") logLevel = "DEBUG1";
+  else if (cmdOptions.loglevel.toUpperCase() === "NONE"||cmdOptions.loglevel.toUpperCase() === "0") logLevel = "NONE";
+  else throw new Error("Unknown log level");
 
 // Show options selected
 console.log("wsSSH: log Leve %s", logLevel);
@@ -68,13 +68,9 @@ console.log("wsSSH: Listen on %d", portListen);
 console.log("wsSSH: Starting web proxy...")
 
 async function connectionHandler(client: net.Socket, sshHost: string, sshPort: number) {
-  let ClientClosed = false;
-  let clientIpPort = client.remoteAddress+":"+client.remoteAddress;
+  let clientIpPort = client.remoteAddress+":"+client.remotePort;
   if (logLevel !== "NONE") console.log("[Client: %s]: Connected", clientIpPort);
-  client.once("close", () => {
-    if (logLevel !== "NONE") console.log("[Client: %s]: Close connection", clientIpPort);
-    ClientClosed = true;
-  });
+  client.once("close", () => logLevel !== "NONE" ? console.log("[Client: %s]: Close connection", clientIpPort) : null);
   const connectionPayload: {raw: string, method: string, httpVersion: string, path: string, header: {[key: string]: string}, second?: {method: string, httpVersion: string, path: string, header: {[key: string]: string}}} = {
     second: {
       method: "",
@@ -98,30 +94,6 @@ async function connectionHandler(client: net.Socket, sshHost: string, sshPort: n
       client.destroy();
     }
     return;
-  }
-
-  /** Set target (SSH) connection */
-  async function connect_target() {
-    if (ClientClosed) throw new Error("Client Closed");
-    const target = net.createConnection({port: sshPort, host: sshHost});
-    target.once("ready", () => client.write(`HTTP/${httpVersion} ${httpCode} ${httpMessage}\r\n\r\n`));
-    /**
-     * After the client and target are connected, this function will transmit data between them
-     */
-    target.on("error", err => console.log("[Target]: %s", String(err)));
-    client.on("error", err => console.log("[Target]: %s", String(err)));
-    target.pipe(client).pipe(target);
-    client.once("close", () => closeClient("Timeout", 400));
-    target.once("close", () => closeClient("Timeout", 400));
-    return new Promise<boolean>(resolve => {
-      client.once("close", resolve);
-      target.once("close", resolve);
-    })
-  }
-
-  async function sendSwitchAndSendDatas() {
-    // client.write(`HTTP/${httpVersion} ${httpCode} ${httpMessage}\r\n\r\n`);
-    return connect_target();
   }
 
   const data = await new Promise<string>(resolve => {
@@ -171,18 +143,22 @@ async function connectionHandler(client: net.Socket, sshHost: string, sshPort: n
     }
   }
   if (logLevel === "DEBUG1") console.log("[Client: %s]: Payload Recived:\n%o", clientIpPort, connectionPayload);
-  return sendSwitchAndSendDatas();
+  const target = net.createConnection({port: sshPort, host: sshHost});
+  target.on("error", err => console.log("[Target]: %s", String(err)));
+  client.on("error", err => console.log("[Target]: %s", String(err)));
+  client.once("close", () => closeClient("Timeout", 400));
+  target.once("close", () => closeClient("Timeout", 400));
+  client.write(`HTTP/${httpVersion} ${httpCode} ${httpMessage}\r\n\r\n`)
+  target.pipe(client);
+  client.pipe(target);
+  return new Promise<boolean>(resolve => {
+    client.once("close", resolve);
+    target.once("close", resolve);
+  });
 }
 
 // Create TCP socket server
 const serverListen = net.createServer();
 serverListen.setMaxListeners(0);
-// Handle new connections
-serverListen.on("connection", (connection) => {
-  connection.allowHalfOpen = true;
-  connection.setNoDelay(true);
-  connection.setKeepAlive(true);
-  return connectionHandler(connection, ssh.host, ssh.port).catch(console.trace);
-});
-// Listen Proxy
 serverListen.listen(portListen, "0.0.0.0", () => console.log("wsSSH: web proxy listen on port %d\n****** LOG ******\n", portListen));
+serverListen.on("connection", (connection) => connectionHandler(connection, ssh.host, ssh.port).catch(console.trace));
