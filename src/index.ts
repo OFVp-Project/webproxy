@@ -67,42 +67,22 @@ console.log("wsSSH:", allowReplaceHostByHeader?"allow replace host by header":"n
 console.log("wsSSH: Listen on %d", portListen);
 console.log("wsSSH: Starting web proxy...")
 
-async function connectionHandler(client: net.Socket, sshHost: string, sshPort: number) {
-  let clientIpPort = client.remoteAddress+":"+client.remotePort;
-  if (logLevel !== "NONE") console.log("[Client: %s]: Connected", clientIpPort);
-  client.once("close", () => logLevel !== "NONE" ? console.log("[Client: %s]: Close connection", clientIpPort) : null);
-  const connectionPayload: {raw: string, method: string, httpVersion: string, path: string, header: {[key: string]: string}, second?: {method: string, httpVersion: string, path: string, header: {[key: string]: string}}} = {
-    second: {
-      method: "",
-      httpVersion: "",
-      path: "",
-      header: {},
-    },
+type payload = {
+  raw?: string,
+  method: string,
+  httpVersion: string,
+  path: string,
+  header: {[key: string]: string},
+  second?: payload
+}
+function parsePayload(data: string): payload {
+  const connectionPayload: payload = {
+    raw: data,
     method: "",
     httpVersion: "",
     path: "",
-    header: {},
-    raw: "",
+    header: {}
   }
-
-  /** Close client side */
-  async function closeClient(msg?: string, code?: number) {
-    if (!client?.destroyed) {
-      if (code) {
-        client.end(`HTTP/1.1 ${code} ${msg||"Bad Response"}\r\n\r\n`)
-      } else client.end(msg?msg:undefined);
-      client.destroy();
-    }
-    return;
-  }
-
-  const data = await new Promise<string>(resolve => {
-    client.once("data", (data) => {
-      resolve(data.toString());
-    });
-  });
-  connectionPayload.raw = data;
-  // Parse init Payload
   for (const line of data.replace(/\r/g, "").split("\n")) {
     if (/^GET|POST|CONNECT|HEAD|PUT|DELETE|OPTIONS|TRACE|PATCH|PROPFIND|PROPPATCH|MKCOL|COPY|MOVE|LOCK|UNLOCK|VERSION-CONTROL/.test(line)) {
       const dataPay = line.match(/^(.*)\s+(.*)\s+HTTP\/(.*)/);
@@ -119,38 +99,46 @@ async function connectionHandler(client: net.Socket, sshHost: string, sshPort: n
       }
     } else if (line.includes(":")) {
       const [key, value] = line.split(":");
+      if (!connectionPayload.second) connectionPayload["second"] = {method: "", httpVersion: "", path: "", header: {}};
       if (!connectionPayload.second.method) connectionPayload.header[key.trim()] = value.trim();
       else connectionPayload.second.header[key.trim()] = value.trim();
     }
   };
-  let hostPort = connectionPayload.header["X-Real-Host"]||connectionPayload.second?.header["X-Real-Host"]||"";
-  if (hostPort.includes(":")) {
-    sshHost = hostPort.split(":")[0];
-    sshPort = parseInt(hostPort.split(":")[1]);
-  }
+  // let hostPort = connectionPayload.header["X-Real-Host"]||connectionPayload.second?.header["X-Real-Host"]||"";
+  // if (hostPort.includes(":")) {
+  //   sshHost = hostPort.split(":")[0];
+  //   sshPort = parseInt(hostPort.split(":")[1]);
+  // }
 
-  if (connectionPayload.second?.method === "CONNECT") {
-    if (allowReplaceHostByHeader) {
-      const [host, port] = connectionPayload.second?.path.split(":");
-      if (!!host) sshHost = host;
-      if (!!port) sshPort = parseInt(port)||80;
-    }
-  } else if (connectionPayload.method === "CONNECT") {
-    if (allowReplaceHostByHeader) {
-      const [host, port] = connectionPayload.path.split(":");
-      if (!!host) sshHost = host;
-      if (!!port)sshPort = parseInt(port)||80;
-    }
-  }
-  if (logLevel === "DEBUG1") console.log("[Client: %s]: Payload Recived:\n%o", clientIpPort, connectionPayload);
+  // if (connectionPayload.second?.method === "CONNECT") {
+  //   if (allowReplaceHostByHeader) {
+  //     const [host, port] = connectionPayload.second?.path.split(":");
+  //     if (!!host) sshHost = host;
+  //     if (!!port) sshPort = parseInt(port)||80;
+  //   }
+  // } else if (connectionPayload.method === "CONNECT") {
+  //   if (allowReplaceHostByHeader) {
+  //     const [host, port] = connectionPayload.path.split(":");
+  //     if (!!host) sshHost = host;
+  //     if (!!port)sshPort = parseInt(port)||80;
+  //   }
+  // }
+  return connectionPayload;
+}
+parsePayload("")
+async function connectionHandler(client: net.Socket, sshHost: string, sshPort: number) {
+  let clientIpPort = client.remoteAddress+":"+client.remotePort;
+  if (logLevel !== "NONE") console.log("[Client: %s]: Connected", clientIpPort);
+  client.once("close", () => logLevel !== "NONE" ? console.log("[Client: %s]: Close connection", clientIpPort) : null);
+  const data = await new Promise<string>(resolve => client.once("data", (data) => resolve(data.toString())));
+  // const connectionPayload = parsePayload(data);
+  // if (logLevel === "DEBUG1") console.log("[Client: %s]: Payload Recived:\n%o", clientIpPort, connectionPayload);
+  if (logLevel === "DEBUG1") console.log("[Client: %s]: Payload Recived:\n%o", clientIpPort, data);
+  client.write(`HTTP/${httpVersion} ${httpCode} ${httpMessage}\r\n\r\n`);
   const target = net.createConnection({port: sshPort, host: sshHost});
-  target.on("error", err => console.log("[Target]: %s", String(err)));
-  client.on("error", err => console.log("[Target]: %s", String(err)));
-  client.once("close", () => closeClient("Timeout", 400));
-  target.once("close", () => closeClient("Timeout", 400));
-  client.write(`HTTP/${httpVersion} ${httpCode} ${httpMessage}\r\n\r\n`)
-  target.pipe(client);
-  client.pipe(target);
+  target.pipe(client); client.pipe(target);
+  target.on("error", err => console.log("[Target]: %s", String(err))); client.on("error", err => console.log("[Target]: %s", String(err)));
+  target.once("close", () => client.end()); client.once("close", () => target.end());
   return new Promise<boolean>(resolve => {
     client.once("close", resolve);
     target.once("close", resolve);
