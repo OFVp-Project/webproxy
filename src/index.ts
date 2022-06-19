@@ -13,7 +13,7 @@ const cmdOptions = yargs(process.argv.slice(2)).alias("h", "help").alias("v", "v
   description: "SSH host and port"
 }).option("code", {
   type: "number",
-  default: 200,
+  default: 101,
   alias: "c",
   description: "Proxy HTTP status code"
 }).option("message", {
@@ -103,24 +103,14 @@ async function connectionHandler(client: net.Socket, sshHost: string, sshPort: n
   /** Set target (SSH) connection */
   async function connect_target() {
     if (ClientClosed) throw new Error("Client Closed");
-    let targetClosed = false;
     const target = net.createConnection({port: sshPort, host: sshHost});
-    await new Promise<void>((resolve, reject) => {
-      target.once("connect", resolve);
-      target.once("error", err => closeClient(err["code"], 400));
-      target.once("error", reject);
-    });
+    target.once("ready", () => client.write(`HTTP/${httpVersion} ${httpCode} ${httpMessage}\r\n\r\n`));
     /**
      * After the client and target are connected, this function will transmit data between them
      */
-    target.on("data", data => {
-      if (ClientClosed) return;
-      client.write(data);
-    })
-    client.on("data", data => {
-      if (targetClosed) return;
-      target.write(data);
-    });
+    target.on("error", err => console.log("[Target]: %s", String(err)));
+    client.on("error", err => console.log("[Target]: %s", String(err)));
+    target.pipe(client).pipe(target);
     client.once("close", () => closeClient("Timeout", 400));
     target.once("close", () => closeClient("Timeout", 400));
     return new Promise<boolean>(resolve => {
@@ -130,8 +120,7 @@ async function connectionHandler(client: net.Socket, sshHost: string, sshPort: n
   }
 
   async function sendSwitchAndSendDatas() {
-    const MessageToSend = `HTTP/${httpVersion} ${httpCode} ${httpMessage}`;
-    client.write(`${MessageToSend}\r\n\r\n`);
+    // client.write(`HTTP/${httpVersion} ${httpCode} ${httpMessage}\r\n\r\n`);
     return connect_target();
   }
 
